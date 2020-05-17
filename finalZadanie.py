@@ -18,9 +18,10 @@ from pyspark.ml.classification import DecisionTreeClassifier, DecisionTreeClassi
 from pyspark.ml.clustering import KMeans
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
+from pyspark.mllib.evaluation import MulticlassMetrics
 from pyspark.ml.feature import VectorAssembler
-from sklearn.metrics import accuracy_score
-from sklearn.metrics import classification_report, confusion_matrix
+from pyspark.mllib.classification import LogisticRegressionWithLBFGS
+from pyspark.mllib.util import MLUtils
 
 
 sc = SparkContext(appName="example23")
@@ -298,17 +299,22 @@ print "Testing error: {0:.4f}".format(test_error)
 predictions.select("prediction", "Accident_Severity", "features").show(5)
 #Model rozhodovacie stromu
 print(tree_model.toDebugString)
-#Confusion matrix pre Decision tree
-y_true = predictions.select(['Accident_Severity']).collect()
-y_pred = predictions.select(['prediction']).collect()
-print(classification_report(y_true, y_pred))
-confusion_matrix(y_true, y_pred)
-#Presnost pre Decision tree
-print('Accuracy score: ', accuracy_score(y_true, y_pred))
-#ROC krivka pre Decision tree
-evaluator = BinaryClassificationEvaluator(labelCol = 'Accident_Severity')
-print("Test Area Under ROC: " + str(evaluator.evaluate(predictions, {evaluator.metricName: "areaUnderROC"})))
-
+#vyhodnotenie decision tree
+evaluatorMulti = MulticlassClassificationEvaluator(labelCol="Accident_Severity", predictionCol="prediction")
+evaluator = BinaryClassificationEvaluator(labelCol="Accident_Severity", rawPredictionCol="prediction", metricName='areaUnderROC')
+acc = evaluatorMulti.evaluate(predictions, {evaluatorMulti.metricName: "accuracy"})
+f1 = evaluatorMulti.evaluate(predictions, {evaluatorMulti.metricName: "f1"})
+Precision = evaluatorMulti.evaluate(predictions, {evaluatorMulti.metricName: "weightedPrecision"})
+Recall = evaluatorMulti.evaluate(predictions, {evaluatorMulti.metricName: "weightedRecall"})
+auc = evaluator.evaluate(predictions)
+print('Accuracy score: ',acc)
+print('f1: ',f1)
+print('Precision: ',Precision)
+print('Recall: ',Recall)
+print('Auc: ',auc)
+#kontingencna tabulka
+cf = predictions.crosstab("prediction","Accident_Severity")
+cf.show()
 
 
 
@@ -321,17 +327,22 @@ lrModel = lr.fit(training_data)
 predictions = lrModel.transform(test_data)
 predictions.select("prediction", "Accident_Severity", "features").show(10)
 print(predictions)
-#vyhodnotenie LR
-y_true = predictions.select(['Accident_Severity']).collect()
-y_pred = predictions.select(['prediction']).collect()
-print(classification_report(y_true, y_pred))
-confusion_matrix(y_true, y_pred)
-#presnost
-print('Accuracy score: ', accuracy_score(y_true, y_pred))
-#ROC krivka pre LR
-evaluator = BinaryClassificationEvaluator(labelCol = 'Accident_Severity')
-print("Test Area Under ROC: " + str(evaluator.evaluate(predictions, {evaluator.metricName: "areaUnderROC"})))
-
+#kontingencna tabulka Logisticka regresia
+cf = predictions.crosstab("prediction","Accident_Severity")
+cf.show()
+#vyhodnotenie Logisticka regresia
+evaluatorMulti = MulticlassClassificationEvaluator(labelCol="Accident_Severity", predictionCol="prediction")
+evaluator = BinaryClassificationEvaluator(labelCol="Accident_Severity", rawPredictionCol="prediction", metricName='areaUnderROC')
+acc = evaluatorMulti.evaluate(predictions, {evaluatorMulti.metricName: "accuracy"})
+f1 = evaluatorMulti.evaluate(predictions, {evaluatorMulti.metricName: "f1"})
+Precision = evaluatorMulti.evaluate(predictions, {evaluatorMulti.metricName: "weightedPrecision"})
+Recall = evaluatorMulti.evaluate(predictions, {evaluatorMulti.metricName: "weightedRecall"})
+auc = evaluator.evaluate(predictions)
+print('Accuracy score: ',acc)
+print('f1: ',f1)
+print('Precision: ',Precision)
+print('Recall: ',Recall)
+print('Auc: ',auc)
 
 
 #SVM
@@ -343,17 +354,22 @@ svm_model = svm_classifier.fit(training_data)
 predictions = svm_model.transform(test_data)
 test_error = predictions.filter(predictions["prediction"] != predictions["Accident_Severity"]).count() / float(test_data.count())
 print "Testing error: {0:.4f}".format(test_error)
-#vyhodnotenie - SVM
-predictions = svm_model.transform(test_data)
-y_true = predictions.select(['Accident_Severity']).collect()
-y_pred = predictions.select(['prediction']).collect()
-print classification_report(y_true, y_pred)
-confusion_matrix(y_true, y_pred)
-#presnost SVM
-print('Accuracy score: ', accuracy_score(y_true, y_pred))
-#ROC krivka pre SVM
-evaluator = BinaryClassificationEvaluator(labelCol = 'Accident_Severity')
-print("Test Area Under ROC: " + str(evaluator.evaluate(predictions, {evaluator.metricName: "areaUnderROC"})))
+#kontingencna tabulka SVM
+cf = predictions.crosstab("prediction","Accident_Severity")
+cf.show()
+#vyhodnotenie SVM
+evaluatorMulti = MulticlassClassificationEvaluator(labelCol="Accident_Severity", predictionCol="prediction")
+evaluator = BinaryClassificationEvaluator(labelCol="Accident_Severity", rawPredictionCol="prediction", metricName='areaUnderROC')
+acc = evaluatorMulti.evaluate(predictions, {evaluatorMulti.metricName: "accuracy"})
+f1 = evaluatorMulti.evaluate(predictions, {evaluatorMulti.metricName: "f1"})
+Precision = evaluatorMulti.evaluate(predictions, {evaluatorMulti.metricName: "weightedPrecision"})
+Recall = evaluatorMulti.evaluate(predictions, {evaluatorMulti.metricName: "weightedRecall"})
+auc = evaluator.evaluate(predictions)
+print('Accuracy score: ',acc)
+print('f1: ',f1)
+print('Precision: ',Precision)
+print('Recall: ',Recall)
+print('Auc: ',auc)
 
 
 
@@ -369,17 +385,22 @@ evaluator = MulticlassClassificationEvaluator(labelCol="Accident_Severity", pred
                                               metricName="accuracy")
 accuracy = evaluator.evaluate(predictions)
 print("Test set accuracy = " + str(accuracy))
-#vyhodnotenie - Bayes
-predictions = model.transform(test_data)
-y_true = predictions.select(['Accident_Severity']).collect()
-y_pred = predictions.select(['prediction']).collect()
-print classification_report(y_true, y_pred)
-confusion_matrix(y_true, y_pred)
-#presnost Bayes
-print('Accuracy score: ', accuracy_score(y_true, y_pred))
-#ROC krivka pre Bayesa
-evaluator = BinaryClassificationEvaluator(labelCol = 'Accident_Severity')
-print("Test Area Under ROC: " + str(evaluator.evaluate(predictions, {evaluator.metricName: "areaUnderROC"})))
+#kontingencna tabulka bayes
+cf = predictions.crosstab("prediction","Accident_Severity")
+cf.show()
+#vyhodnotenie bayes
+evaluatorMulti = MulticlassClassificationEvaluator(labelCol="Accident_Severity", predictionCol="prediction")
+evaluator = BinaryClassificationEvaluator(labelCol="Accident_Severity", rawPredictionCol="prediction", metricName='areaUnderROC')
+acc = evaluatorMulti.evaluate(predictions, {evaluatorMulti.metricName: "accuracy"})
+f1 = evaluatorMulti.evaluate(predictions, {evaluatorMulti.metricName: "f1"})
+Precision = evaluatorMulti.evaluate(predictions, {evaluatorMulti.metricName: "weightedPrecision"})
+Recall = evaluatorMulti.evaluate(predictions, {evaluatorMulti.metricName: "weightedRecall"})
+auc = evaluator.evaluate(predictions)
+print('Accuracy score: ',acc)
+print('f1: ',f1)
+print('Precision: ',Precision)
+print('Recall: ',Recall)
+print('Auc: ',auc)
 
 
 
@@ -396,18 +417,22 @@ predictions = model.transform(test_data)
 test_error = predictions.filter(predictions["prediction"] != predictions["Accident_Severity"]).count() / float(test_data.count())
 print "Testing error: {0:.4f}".format(test_error)
 print(model.toDebugString)
-#vyhodnotenie - RandomForest 
-predictions = model.transform(test_data)
-y_true = predictions.select(['Accident_Severity']).collect()
-y_pred = predictions.select(['prediction']).collect()
-print classification_report(y_true, y_pred)
-confusion_matrix(y_true, y_pred)
-#presnost RandomForest 
-print('Accuracy score: ', accuracy_score(y_true, y_pred))
-#ROC krivka pre Random forest
-evaluator = BinaryClassificationEvaluator(labelCol = 'Accident_Severity')
-print("Test Area Under ROC: " + str(evaluator.evaluate(predictions, {evaluator.metricName: "areaUnderROC"})))
-predictions.select("prediction", "Accident_Severity", "features").show(5)
+#kontingencna Random Forest
+cf = predictions.crosstab("prediction","Accident_Severity")
+cf.show()
+#vyhodnotenie Random Forest
+evaluatorMulti = MulticlassClassificationEvaluator(labelCol="Accident_Severity", predictionCol="prediction")
+evaluator = BinaryClassificationEvaluator(labelCol="Accident_Severity", rawPredictionCol="prediction", metricName='areaUnderROC')
+acc = evaluatorMulti.evaluate(predictions, {evaluatorMulti.metricName: "accuracy"})
+f1 = evaluatorMulti.evaluate(predictions, {evaluatorMulti.metricName: "f1"})
+Precision = evaluatorMulti.evaluate(predictions, {evaluatorMulti.metricName: "weightedPrecision"})
+Recall = evaluatorMulti.evaluate(predictions, {evaluatorMulti.metricName: "weightedRecall"})
+auc = evaluator.evaluate(predictions)
+print('Accuracy score: ',acc)
+print('f1: ',f1)
+print('Precision: ',Precision)
+print('Recall: ',Recall)
+print('Auc: ',auc)
 
 
 
